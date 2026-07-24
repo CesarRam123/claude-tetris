@@ -50,6 +50,8 @@ jobs:
                  gh issue edit ${{ github.event.issue.number }} --add-label "<n1>,<n2>"
             5. Publica UN comentario de diagnóstico en español con:
                  gh issue comment ${{ github.event.issue.number }} --body "..."
+               El comentario debe estar en formato Markdown válido que GitHub renderice
+               correctamente (encabezados, listas, code blocks con ruta:función, etc.).
                El comentario debe incluir:
                - Resumen del problema/solicitud
                - Archivos y funciones probablemente afectados (ruta:función)
