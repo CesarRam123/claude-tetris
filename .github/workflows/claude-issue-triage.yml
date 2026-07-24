@@ -1,0 +1,61 @@
+name: Claude Issue Triage
+
+on:
+  issues:
+    types: [opened, edited]
+
+concurrency:
+  group: issue-triage-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    # Evita doble ejecución con claude.yml (que maneja los que mencionan @claude)
+    if: >
+      !contains(github.event.issue.body, '@claude') &&
+      !contains(github.event.issue.title, '@claude')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write        # necesario para crear/aplicar labels y comentar
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Issue Triage
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_args: '--allowed-tools "Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh issue comment:*),Bash(gh label list:*),Bash(gh label create:*)"'
+          prompt: |
+            Analiza el issue #${{ github.event.issue.number }} del repo ${{ github.repository }}.
+
+            Contexto: proyecto Tetris en JS vanilla (index.html, style.css, game.js).
+            Toda la copia de cara al usuario va en español.
+
+            Pasos:
+            1. Lee el issue con: gh issue view ${{ github.event.issue.number }}
+            2. Revisa el código relevante (game.js sobre todo) para entender el problema.
+            3. Lista los labels existentes: gh label list
+            4. Asigna 1-3 labels apropiados del set base:
+               tipo -> bug, enhancement, question, documentation
+               prioridad -> priority:high, priority:medium, priority:low
+               área -> area:rendering, area:game-loop, area:pieces, area:scoring, area:ui
+               Crea el que falte con:
+                 gh label create "<nombre>" --color <hex> --description "<desc>" --force
+               Aplica con:
+                 gh issue edit ${{ github.event.issue.number }} --add-label "<n1>,<n2>"
+            5. Publica UN comentario de diagnóstico en español con:
+                 gh issue comment ${{ github.event.issue.number }} --body "..."
+               El comentario debe incluir:
+               - Resumen del problema/solicitud
+               - Archivos y funciones probablemente afectados (ruta:función)
+               - Hipótesis de causa raíz (si es bug) o enfoque sugerido (si es mejora)
+               - Pasos de solución propuestos a alto nivel
+
+            IMPORTANTE: NO edites el título ni el cuerpo del issue (evita bucles de re-trigger).
+            Al re-analizar un issue editado, actualiza labels según haga falta; no dupliques el
+            diagnóstico si ya existe uno tuyo salvo que el issue haya cambiado sustancialmente.
